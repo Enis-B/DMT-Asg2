@@ -331,8 +331,8 @@ new_pred = []
 for inner_list in pred:
     new_pred.append(max(inner_list))
 
-print([new_pred])
-print([list(y_test_s)])
+#print([new_pred])
+#print([list(y_test_s)])
 
 new_pred = np.asarray([new_pred])
 y_test_s = np.asarray([list(y_test_s)])
