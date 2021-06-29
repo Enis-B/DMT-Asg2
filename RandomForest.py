@@ -8,20 +8,30 @@ from sklearn.preprocessing import StandardScaler,MinMaxScaler
 from sklearn.decomposition import PCA
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
+from xgboost import XGBClassifier
 from sklearn import metrics
 from sklearn.model_selection import cross_val_score
 from sklearn.model_selection import GridSearchCV
+from sklearn.metrics import plot_confusion_matrix
+from surprise import Dataset
+from surprise import Reader
+import lightgbm
+from surprise import KNNWithMeans
+from surprise import SVD
 
 ## Read data
 train = pd.read_csv("training_set_VU_DM.csv")
-test = pd.read_csv("test_set_VU_DM.csv")
+
+#test = pd.read_csv("test_set_VU_DM.csv")
 
 ## Use 1/4 of data for training
 #train = train.sample(frac = 0.01)
 
 ## Replace na
 train = train.fillna(train.mode().iloc[0])
-test = test.fillna(test.mode().iloc[0])
+
+#test = test.fillna(test.mode().iloc[0])
+
 #train.fillna(value=0.0, inplace=True)
 #test.fillna(value=0.0, inplace=True)
 
@@ -47,11 +57,36 @@ def add_date_features(
 
     return in_data
 
+#train['mean_prop_score'] = ''
+#train['mean_prop_score'] = np.NAN
+
+#for i, row in train.iterrows():
+#    row['mean_prop_score'] = int((row['prop_location_score1'] + row['prop_location_score2']) / 2)
+
+
+#print(train['mean_prop_score'].head())
+
 train = add_date_features(train)
-test = add_date_features(test)
+
+#test = add_date_features(test)
 
 train = train.drop(["date_time"], axis=1)
-test = test.drop(["date_time"], axis=1)
+
+#test = test.drop(["date_time"], axis=1)
+
+#ratings_dict = {
+#    "item": [1, 2, 1, 2, 1, 2, 1, 2, 1],
+#    "user": ['A', 'A', 'B', 'B', 'C', 'C', 'D', 'D', 'E'],
+#    "rating": [1, 2, 2, 4, 2.5, 4, 4.5, 5, 3], }
+
+# To use item-based cosine similarity
+#sim_options = {
+#    "name": "cosine",
+#    "user_based": False,  } # Compute  similarities between items
+
+#algo = KNNWithMeans(sim_options=sim_options)
+
+#reader = Reader(rating_scale=(0, 5))
 
 scores = []
 
@@ -101,6 +136,7 @@ X = train[['srch_id', 'site_id', 'visitor_location_country_id',
 
 y = train['scores'] ## Labels
 
+'''
 X_test = test[['srch_id', 'site_id', 'visitor_location_country_id',
                'visitor_hist_starrating', 'visitor_hist_adr_usd', 'prop_country_id',
                'prop_id', 'prop_starrating', 'prop_review_score', 'prop_brand_bool',
@@ -118,10 +154,11 @@ X_test = test[['srch_id', 'site_id', 'visitor_location_country_id',
                'comp6_rate_percent_diff', 'comp7_rate', 'comp7_inv',
                'comp7_rate_percent_diff', 'comp8_rate', 'comp8_inv',
                'comp8_rate_percent_diff', 'month', 'hour', 'dayofweek']]
+'''
 
-## Keep original dataframes
-X_prescale = X
-X_test_prescale = X_test
+## Keep original dataframes (commented to save memory)
+#X_prescale = X
+#X_test_prescale = X_test
 
 
 ## Transform data for algorithm (Normalization)
@@ -133,10 +170,29 @@ X_test_prescale = X_test
 
 
 # Split dataset into training set and test set
-X_train_s, X_test_s, y_train_s, y_test_s = train_test_split(X, y, test_size=0.20,random_state=5)
+X_train_s, X_test_s, y_train_s, y_test_s = train_test_split(X, y, test_size=0.20, random_state=1997)
 
-X_train = X
-y_train = y
+#X_train = X
+#y_train = y
+
+## testing recommender !
+
+#new_train = pd.DataFrame(X_train_s)
+
+#print(new_train.head())
+
+#new_train = new_train[["srch_id", "prop_id"]]
+
+#new_train['scores'] = list(y_train_s)
+
+#print(new_train.head())
+
+#data_rec = Dataset.load_from_df(new_train[["srch_id", "prop_id","scores"]], reader)
+#trainingSet = data_rec.build_full_trainset()
+
+#algo.fit(trainingSet)
+
+#prediction = algo.predict(X_test_s['srch_id'],X_test_s['prop_id'],y_test_s,verbose=True)
 
 
 ## No transformation needed
@@ -152,13 +208,14 @@ param_grid = {
 }
 
 
-#Create a Gaussian Classifier
-
+#Create Classifier
+lg_clf = lightgbm.LGBMClassifier(objective='multiclass', num_class = 3)
+xgb_clf = XGBClassifier(objective='multi:softmax', num_class = 3)
 clf=RandomForestClassifier()
 
 # Instantiate the grid search model
-grid_search = GridSearchCV(estimator = clf, param_grid = param_grid,
-                           cv = 3, n_jobs = 1, verbose = 2)
+#grid_search = GridSearchCV(estimator = clf, param_grid = param_grid,
+#                           cv = 3, n_jobs = 1, verbose = 2)
 
 def evaluate(model, test_features, test_labels):
     predictions = model.predict(test_features)
@@ -172,26 +229,31 @@ def evaluate(model, test_features, test_labels):
     return accuracy
 
 # Fit the grid search to the data
-grid_search.fit(X_train_s, y_train_s)
+#grid_search.fit(X_train_s, y_train_s)
 
-print(grid_search.best_params_)
+#print(grid_search.best_params_)
 
-best_grid = grid_search.best_estimator_
-grid_accuracy = evaluate(best_grid, X_test_s, y_test_s)
+#best_grid = grid_search.best_estimator_
+#grid_accuracy = evaluate(best_grid, X_test_s, y_test_s)
 
-base_model = RandomForestClassifier(n_estimators = 10, random_state = 42)
-base_model.fit(X_train_s, y_train_s)
-base_accuracy = evaluate(base_model, X_test_s, y_test_s)
+#base_model = RandomForestClassifier(n_estimators = 10, random_state = 42)
+#base_model.fit(X_train_s, y_train_s)
+#base_accuracy = evaluate(base_model, X_test_s, y_test_s)
 
-print('Improvement of {:0.2f}%.'.format( 100 * (grid_accuracy - base_accuracy) / base_accuracy))
+#print('Improvement of {:0.2f}%.'.format( 100 * (grid_accuracy - base_accuracy) / base_accuracy))
 
 
 #Train the model using the training sets y_pred=clf.predict(X_test)
 #clf.fit(X_train, y_train)
 
-clf.fit(X_train_s,y_train_s)
+#clf.fit(X_train_s,y_train_s)
+#xgb_clf.fit(X_train_s,y_train_s)
+lg_clf.fit(X_train_s,y_train_s)
 
-feature_imp = pd.Series(clf.feature_importances_,index=list(X_prescale.columns)).sort_values(ascending=False)
+
+#feature_imp = pd.Series(clf.feature_importances_,index=list(X.columns)).sort_values(ascending=False)
+#feature_imp = pd.Series(xgb_clf.feature_importances_,index=list(X.columns)).sort_values(ascending=False)
+feature_imp = pd.Series(lg_clf.feature_importances_,index=list(X.columns)).sort_values(ascending=False)
 
 print(feature_imp)
 
@@ -207,7 +269,10 @@ plt.show()
 ## Get prediction
 #y_pred = clf.predict(X_test)
 
-y_pred_s = clf.predict(X_test_s)
+#y_pred_s = clf.predict(X_test_s)
+#y_pred_s = xgb_clf.predict(X_test_s)
+y_pred_s = lg_clf.predict(X_test_s)
+
 
 ## Save to df
 #X_test_prescale['y_pred'] = y_pred
@@ -231,3 +296,47 @@ y_pred_s = clf.predict(X_test_s)
 #print("%0.2f accuracy with a standard deviation of %0.2f" % (cv_scores.mean(), cv_scores.std()))
 
 print("Accuracy:",metrics.accuracy_score(y_test_s, y_pred_s))
+
+
+# Plot non-normalized confusion matrix
+titles_options = [("Confusion matrix, without normalization", None),
+                  ("Normalized confusion matrix", 'true')]
+
+for title, normalize in titles_options:
+    #disp = plot_confusion_matrix(clf, X_test_s, y_test_s,
+    #                             display_labels=y_test_s.columns,
+    #                             cmap=plt.cm.Blues,
+    #                             normalize=normalize)
+    #disp = plot_confusion_matrix(xgb_clf, X_test_s, y_test_s,
+    #                             display_labels=y.unique().tolist(),
+    #                             cmap=plt.cm.Blues,
+    #                             normalize=normalize)
+    disp = plot_confusion_matrix(lg_clf, X_test_s, y_test_s,
+                                 display_labels=y.unique().tolist(),
+                                 cmap=plt.cm.Blues,
+                                 normalize=normalize)
+    disp.ax_.set_title(title)
+
+    print(title)
+    print(disp.confusion_matrix)
+plt.show()
+
+#pred = xgb_clf.predict_proba(X_test_s)
+pred = lg_clf.predict_proba(X_test_s)
+
+print(pred)
+
+new_pred = []
+
+for inner_list in pred:
+    new_pred.append(max(inner_list))
+
+print([new_pred])
+print([list(y_test_s)])
+
+new_pred = np.asarray([new_pred])
+y_test_s = np.asarray([list(y_test_s)])
+
+print("NDCG:",metrics.ndcg_score(y_test_s, new_pred))
+
+

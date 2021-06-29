@@ -13,7 +13,8 @@ train = pd.read_csv("training_set_VU_DM.csv")
 test = pd.read_csv("test_set_VU_DM.csv")
 
 ## Drop na
-train = train.dropna(axis=1,how='any')
+train = train.fillna(train.mode().iloc[0])
+test = test.fillna(test.mode().iloc[0])
 
 print(train.isnull().sum())
 
@@ -100,6 +101,7 @@ n_cluster = range(1, 20)
 
 kmeans = [KMeans(n_clusters = i).fit(data) for i in n_cluster]
 scores = [kmeans[i].score(data) for i in range(len(kmeans))]
+
 
 
 fig, ax = plt.subplots(figsize = (16, 8))
