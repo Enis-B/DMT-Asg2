@@ -1,28 +1,15 @@
-import pandas as pd
-import numpy as np
-import seaborn as sns
-import matplotlib.pyplot as plt
-from sklearn.cluster import KMeans
-from mpl_toolkits.mplot3d import Axes3D
-from sklearn.preprocessing import StandardScaler,MinMaxScaler
-from sklearn.decomposition import PCA
-from sklearn.model_selection import train_test_split
-from sklearn.ensemble import RandomForestClassifier
-from xgboost import XGBClassifier
-from sklearn import metrics
-from sklearn.model_selection import cross_val_score
-from sklearn.model_selection import GridSearchCV
-from sklearn.metrics import plot_confusion_matrix
-from surprise import Dataset
-from surprise import Reader
 import lightgbm
-from surprise import KNNWithMeans
-from surprise import SVD
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import seaborn as sns
+from sklearn import metrics
+from sklearn.model_selection import train_test_split
 
 ## Read data
 train = pd.read_csv("training_set_VU_DM.csv")
 
-#test = pd.read_csv("test_set_VU_DM.csv")
+test = pd.read_csv("test_set_VU_DM.csv")
 
 ## Use 1/4 of data for training
 #train = train.sample(frac = 0.01)
@@ -30,14 +17,10 @@ train = pd.read_csv("training_set_VU_DM.csv")
 ## Replace na
 train = train.fillna(train.mode().iloc[0])
 
-#test = test.fillna(test.mode().iloc[0])
-
 #train.fillna(value=0.0, inplace=True)
-#test.fillna(value=0.0, inplace=True)
 
 ## Drop na
 #train = train.dropna(axis=1,how='any')
-#test = test.dropna(axis=1,how='any')
 
 ## Drop id-like columns
 #train = train.drop(['srch_id','site_id','visitor_location_country_id',
@@ -68,11 +51,8 @@ def add_date_features(
 
 train = add_date_features(train)
 
-#test = add_date_features(test)
 
 train = train.drop(["date_time"], axis=1)
-
-#test = test.drop(["date_time"], axis=1)
 
 #ratings_dict = {
 #    "item": [1, 2, 1, 2, 1, 2, 1, 2, 1],
@@ -132,11 +112,11 @@ X = train[['srch_id', 'site_id', 'visitor_location_country_id',
            'comp5_rate_percent_diff', 'comp6_rate', 'comp6_inv',
            'comp6_rate_percent_diff', 'comp7_rate', 'comp7_inv',
            'comp7_rate_percent_diff', 'comp8_rate', 'comp8_inv',
-           'comp8_rate_percent_diff', 'month', 'hour', 'dayofweek','position']]  ## Features
+           'comp8_rate_percent_diff','position']]  ## Features # position, day ,month, year
 
 y = train['scores'] ## Labels
 
-'''
+
 X_test = test[['srch_id', 'site_id', 'visitor_location_country_id',
                'visitor_hist_starrating', 'visitor_hist_adr_usd', 'prop_country_id',
                'prop_id', 'prop_starrating', 'prop_review_score', 'prop_brand_bool',
@@ -153,21 +133,16 @@ X_test = test[['srch_id', 'site_id', 'visitor_location_country_id',
                'comp5_rate_percent_diff', 'comp6_rate', 'comp6_inv',
                'comp6_rate_percent_diff', 'comp7_rate', 'comp7_inv',
                'comp7_rate_percent_diff', 'comp8_rate', 'comp8_inv',
-               'comp8_rate_percent_diff', 'month', 'hour', 'dayofweek']]
-'''
+               'comp8_rate_percent_diff']]
 
-## Keep original dataframes (commented to save memory)
+
+## Keep original dataframe (commented to save memory)
 #X_prescale = X
-#X_test_prescale = X_test
-
 
 ## Transform data for algorithm (Normalization)
 #scaler = MinMaxScaler()
 
 #X = scaler.fit_transform(X)
-#X_test = scaler.transform(X_test)
-
-
 
 # Split dataset into training set and test set
 X_train_s, X_test_s, y_train_s, y_test_s = train_test_split(X, y, test_size=0.20, random_state=1997)
@@ -209,14 +184,16 @@ param_grid = {
 
 
 #Create Classifier
-lg_clf = lightgbm.LGBMClassifier(objective='multiclass', num_class = 3)
-xgb_clf = XGBClassifier(objective='multi:softmax', num_class = 3)
-clf=RandomForestClassifier()
+#lg_clf = lightgbm.LGBMClassifier(objective='multiclass', num_class = 3)
+#xgb_clf = XGBClassifier(objective='multi:softmax', num_class = 3)
+#clf=RandomForestClassifier()
+lg_ranker = lightgbm.LGBMRanker(objective='lambdarank')
+
 
 # Instantiate the grid search model
 #grid_search = GridSearchCV(estimator = clf, param_grid = param_grid,
 #                           cv = 3, n_jobs = 1, verbose = 2)
-
+'''
 def evaluate(model, test_features, test_labels):
     predictions = model.predict(test_features)
     errors = abs(predictions - test_labels)
@@ -227,6 +204,7 @@ def evaluate(model, test_features, test_labels):
     print('Accuracy = {:0.2f}%.'.format(accuracy))
 
     return accuracy
+'''
 
 # Fit the grid search to the data
 #grid_search.fit(X_train_s, y_train_s)
@@ -248,12 +226,28 @@ def evaluate(model, test_features, test_labels):
 
 #clf.fit(X_train_s,y_train_s)
 #xgb_clf.fit(X_train_s,y_train_s)
-lg_clf.fit(X_train_s,y_train_s)
+#lg_clf.fit(X_train_s,y_train_s)
 
+#qids = X.groupby("srch_id")["srch_id"].count().to_numpy()
+#X = X.drop(["srch_id"],axis=1)
+
+
+qids_train = pd.DataFrame(X_train_s).groupby("srch_id")["srch_id"].count().to_numpy()
+X_train_s = pd.DataFrame(X_train_s).drop(["srch_id"],axis=1)
+qids_validation = X_test_s.groupby("srch_id")["srch_id"].count().to_numpy()
+X_test_s = X_test_s.drop(["srch_id"], axis=1)
+
+#print(qids_train)
+
+
+group = qids_train
+lg_ranker.fit(X_train_s,y_train_s,group=group,eval_set=[(X_test_s,y_test_s)],
+              eval_group=[qids_validation],eval_metric='ndcg',eval_at=10,verbose=10)
 
 #feature_imp = pd.Series(clf.feature_importances_,index=list(X.columns)).sort_values(ascending=False)
 #feature_imp = pd.Series(xgb_clf.feature_importances_,index=list(X.columns)).sort_values(ascending=False)
-feature_imp = pd.Series(lg_clf.feature_importances_,index=list(X.columns)).sort_values(ascending=False)
+#feature_imp = pd.Series(lg_clf.feature_importances_,index=list(X.columns)).sort_values(ascending=False)
+feature_imp = pd.Series(lg_ranker.feature_importances_,index=list(X_train_s.columns)).sort_values(ascending=False)
 
 print(feature_imp)
 
@@ -266,38 +260,18 @@ plt.title("Visualizing Important Features")
 plt.legend()
 plt.show()
 
-## Get prediction
-#y_pred = clf.predict(X_test)
-
 #y_pred_s = clf.predict(X_test_s)
 #y_pred_s = xgb_clf.predict(X_test_s)
-y_pred_s = lg_clf.predict(X_test_s)
-
-
-## Save to df
-#X_test_prescale['y_pred'] = y_pred
-
-## Print
-#print(y_pred)
-
-## Create result
-#result = X_test_prescale[['srch_id','prop_id','y_pred']]
-
-#result = result.sort_values(['srch_id','y_pred'], ascending=(True,False))
-
-## Create submission
-#submission = result[['srch_id', 'prop_id']]
-
-#submission.to_csv('submission.csv',index=False)
-
+#y_pred_s = lg_clf.predict(X_test_s)
+y_pred_s = lg_ranker.predict(X_test_s)
 
 # Model Accuracy, how often is the classifier correct?
 #cv_scores = cross_val_score(clf, X, y, cv=5)
 #print("%0.2f accuracy with a standard deviation of %0.2f" % (cv_scores.mean(), cv_scores.std()))
 
-print("Accuracy:",metrics.accuracy_score(y_test_s, y_pred_s))
+#print("Accuracy:",metrics.accuracy_score(y_test_s, y_pred_s))
 
-
+'''
 # Plot non-normalized confusion matrix
 titles_options = [("Confusion matrix, without normalization", None),
                   ("Normalized confusion matrix", 'true')]
@@ -320,23 +294,50 @@ for title, normalize in titles_options:
     print(title)
     print(disp.confusion_matrix)
 plt.show()
+'''
 
 #pred = xgb_clf.predict_proba(X_test_s)
-pred = lg_clf.predict_proba(X_test_s)
+#pred = lg_clf.predict_proba(X_test_s)
 
-print(pred)
+#print(pred)
 
-new_pred = []
+print(y_test_s,'\n', y_pred_s)
 
-for inner_list in pred:
-    new_pred.append(max(inner_list))
+#new_pred = []
+
+#for inner_list in pred:
+#    new_pred.append(max(inner_list))
 
 #print([new_pred])
 #print([list(y_test_s)])
 
-new_pred = np.asarray([new_pred])
-y_test_s = np.asarray([list(y_test_s)])
+#new_pred = np.asarray([new_pred])
+#y_test_s = np.asarray([list(y_test_s)])
 
-print("NDCG:",metrics.ndcg_score(y_test_s, new_pred))
+#print("NDCG:",metrics.ndcg_score(y_test_s, new_pred))
 
+print("NDCG:",metrics.ndcg_score(np.asarray([list(y_test_s)]),np.asarray([y_pred_s])))
+
+
+
+## Get prediction
+#y_pred = clf.predict(X_test)
+y_pred = lg_ranker.predict(X_test)
+
+## Save to df
+X_test['y_pred'] = y_pred
+
+## Print
+print(y_pred)
+
+## Create result
+result = X_test[['srch_id','prop_id','y_pred']]
+
+result = result.sort_values(['srch_id','y_pred'], ascending=(True,False))
+
+## Create submission
+submission = result[['srch_id', 'prop_id']]
+
+#submission.to_csv('submission.csv',index=False)
+submission.to_csv('submission_rank.csv',index=False)
 
