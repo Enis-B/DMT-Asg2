@@ -8,7 +8,6 @@ from sklearn.model_selection import train_test_split
 
 ## Read data
 train = pd.read_csv("training_set_VU_DM.csv")
-
 test = pd.read_csv("test_set_VU_DM.csv")
 
 ## Use 1/4 of data for training
@@ -16,6 +15,7 @@ test = pd.read_csv("test_set_VU_DM.csv")
 
 ## Replace na
 train = train.fillna(train.mode().iloc[0])
+test = test.fillna(test.mode().iloc[0])
 
 #train.fillna(value=0.0, inplace=True)
 
@@ -46,13 +46,16 @@ def add_date_features(
 #for i, row in train.iterrows():
 #    row['mean_prop_score'] = int((row['prop_location_score1'] + row['prop_location_score2']) / 2)
 
-
 #print(train['mean_prop_score'].head())
 
-train = add_date_features(train)
+#test['mean_prop_score'] = ''
+#test['mean_prop_score'] = np.NAN
 
+#for i, row in test.iterrows():
+#    row['mean_prop_score'] = int((row['prop_location_score1'] + row['prop_location_score2']) / 2)
 
-train = train.drop(["date_time"], axis=1)
+#print(test['mean_prop_score'].head())
+
 
 #ratings_dict = {
 #    "item": [1, 2, 1, 2, 1, 2, 1, 2, 1],
@@ -68,19 +71,23 @@ train = train.drop(["date_time"], axis=1)
 
 #reader = Reader(rating_scale=(0, 5))
 
-scores = []
+def add_scores(train):
+    scores = []
+    for i, row in train.iterrows():
+        if row['booking_bool'] == 1:
+            scores.append(5)
+        elif row['booking_bool'] == 0 and row['click_bool'] == 1:
+            scores.append(1)
+        elif row['booking_bool'] == 0 and row['click_bool'] == 0:
+            scores.append(0)
+    train['scores'] = scores
+    return train
 
-for i, row in train.iterrows():
-    if row['booking_bool'] == 1:
-        scores.append(5)
-    elif row['booking_bool'] == 0 and row['click_bool'] == 1:
-        scores.append(1)
-    elif row['booking_bool'] == 0 and row['click_bool'] == 0:
-        scores.append(0)
+train = add_scores(train)
 
-train['scores'] = scores
+y = train['scores']
 
-#train = train.drop(["booking_bool","click_bool"], axis=1)
+train = train.drop(["booking_bool","click_bool","scores"], axis=1)
 
 #print(train.head())
 
@@ -88,14 +95,90 @@ train['scores'] = scores
 
 ## Features
 
-features = train.columns
+#features = train.columns
+#print(train.describe())
+#print(train.dtypes)
 
 #print(features)
 
 #print(train.head())
 
+def add_mean_features(train):
+    stich = train.groupby('prop_id',as_index=False).mean()
+    #print(stich.head())
+    train = pd.merge(left=train,right=stich, how='left',left_on='prop_id',right_on='prop_id'
+                     , suffixes= ('', '_mean'))
+    #print(train.columns)
+    #print(train.head())
+    print(train.shape)
+    return train
+
+def add_std_features(train):
+    stich = train.groupby('prop_id',as_index=False).std()
+    #print(stich.head())
+    train = pd.merge(left=train,right=stich, how='left',left_on='prop_id',right_on='prop_id'
+                     , suffixes= ('', '_std'))
+    #print(train.columns)
+    #print(train.head())
+    print(train.shape)
+    return train
+
+def add_median_features(train):
+    stich = train.groupby('prop_id',as_index=False).median()
+    #print(stich.head())
+    train = pd.merge(left=train,right=stich, how='left',left_on='prop_id',right_on='prop_id'
+                     , suffixes= ('', '_median'))
+    #print(train.columns)
+    #print(train.head())
+    print(train.shape)
+    return train
+
+
+train = add_mean_features(train)
+
+#train1 = add_std_features(train)
+#train2 = add_median_features(train)
+
+#train = pd.merge(left=train,right=train1)
+
+#print(train.shape)
+
+#train = pd.merge(left = train, right = train2)
+
+#print(train.shape)
+
+test = add_mean_features(test)
+
+#est1 = add_std_features(test)
+#test2 = add_median_features(test)
+
+#test = pd.merge(left=test,right=test1)
+
+#print(test.shape)
+
+#test = pd.merge(left = test, right = test2)
+
+#print(test.shape)
+
+
+train = add_date_features(train)
+test = add_date_features(test)
+
+train = train.drop(["date_time","comp6_inv_mean","comp7_inv_mean","comp8_inv_mean"], axis=1)
+test = test.drop(["date_time"], axis=1)
+
+
+print("Train shape:\n",train.shape)
+print("Train columns:\n",train.columns)
+
+print("Test shape:\n",test.shape)
+print("Test columns:\n",test.columns)
+
+
+
 ### RF
 
+'''
 X = train[['srch_id', 'site_id', 'visitor_location_country_id',
            'visitor_hist_starrating', 'visitor_hist_adr_usd', 'prop_country_id',
            'prop_id', 'prop_starrating', 'prop_review_score', 'prop_brand_bool',
@@ -114,9 +197,9 @@ X = train[['srch_id', 'site_id', 'visitor_location_country_id',
            'comp7_rate_percent_diff', 'comp8_rate', 'comp8_inv',
            'comp8_rate_percent_diff','position']]  ## Features # position, day ,month, year
 
-y = train['scores'] ## Labels
+'''
 
-
+'''
 X_test = test[['srch_id', 'site_id', 'visitor_location_country_id',
                'visitor_hist_starrating', 'visitor_hist_adr_usd', 'prop_country_id',
                'prop_id', 'prop_starrating', 'prop_review_score', 'prop_brand_bool',
@@ -135,7 +218,7 @@ X_test = test[['srch_id', 'site_id', 'visitor_location_country_id',
                'comp7_rate_percent_diff', 'comp8_rate', 'comp8_inv',
                'comp8_rate_percent_diff']]
 
-
+'''
 ## Keep original dataframe (commented to save memory)
 #X_prescale = X
 
@@ -145,7 +228,7 @@ X_test = test[['srch_id', 'site_id', 'visitor_location_country_id',
 #X = scaler.fit_transform(X)
 
 # Split dataset into training set and test set
-X_train_s, X_test_s, y_train_s, y_test_s = train_test_split(X, y, test_size=0.20, random_state=1997)
+X_train_s, X_test_s, y_train_s, y_test_s = train_test_split(train, y, test_size=0.30, random_state=1997)
 
 #X_train = X
 #y_train = y
@@ -173,6 +256,7 @@ X_train_s, X_test_s, y_train_s, y_test_s = train_test_split(X, y, test_size=0.20
 ## No transformation needed
 
 # Create the parameter grid based on the results of random search
+'''
 param_grid = {
     'bootstrap': [True],
     'max_depth': [50, 75, 100],
@@ -181,13 +265,14 @@ param_grid = {
     'min_samples_split': [5, 10],
     'n_estimators': [50, 75, 100]
 }
-
+'''
 
 #Create Classifier
 #lg_clf = lightgbm.LGBMClassifier(objective='multiclass', num_class = 3)
 #xgb_clf = XGBClassifier(objective='multi:softmax', num_class = 3)
 #clf=RandomForestClassifier()
-lg_ranker = lightgbm.LGBMRanker(objective='lambdarank')
+
+lg_ranker = lightgbm.LGBMRanker(objective='lambdarank') #, n_estimators=1000, learning_rate=0.001, num_leaves=50)
 
 
 # Instantiate the grid search model
@@ -228,9 +313,6 @@ def evaluate(model, test_features, test_labels):
 #xgb_clf.fit(X_train_s,y_train_s)
 #lg_clf.fit(X_train_s,y_train_s)
 
-#qids = X.groupby("srch_id")["srch_id"].count().to_numpy()
-#X = X.drop(["srch_id"],axis=1)
-
 
 qids_train = pd.DataFrame(X_train_s).groupby("srch_id")["srch_id"].count().to_numpy()
 X_train_s = pd.DataFrame(X_train_s).drop(["srch_id"],axis=1)
@@ -270,6 +352,7 @@ y_pred_s = lg_ranker.predict(X_test_s)
 #print("%0.2f accuracy with a standard deviation of %0.2f" % (cv_scores.mean(), cv_scores.std()))
 
 #print("Accuracy:",metrics.accuracy_score(y_test_s, y_pred_s))
+
 
 '''
 # Plot non-normalized confusion matrix
@@ -319,19 +402,26 @@ print(y_test_s,'\n', y_pred_s)
 print("NDCG:",metrics.ndcg_score(np.asarray([list(y_test_s)]),np.asarray([y_pred_s])))
 
 
+'''
+qids = train.groupby("srch_id")["srch_id"].count().to_numpy()
+X = train.drop(["srch_id"],axis=1)
+
+group = qids
+lg_ranker.fit(X,y,group=group)
+'''
 
 ## Get prediction
 #y_pred = clf.predict(X_test)
-y_pred = lg_ranker.predict(X_test)
+y_pred = lg_ranker.predict(test)
 
 ## Save to df
-X_test['y_pred'] = y_pred
+test['y_pred'] = y_pred
 
 ## Print
 print(y_pred)
 
 ## Create result
-result = X_test[['srch_id','prop_id','y_pred']]
+result = test[['srch_id','prop_id','y_pred']]
 
 result = result.sort_values(['srch_id','y_pred'], ascending=(True,False))
 
@@ -339,5 +429,4 @@ result = result.sort_values(['srch_id','y_pred'], ascending=(True,False))
 submission = result[['srch_id', 'prop_id']]
 
 #submission.to_csv('submission.csv',index=False)
-submission.to_csv('submission_rank.csv',index=False)
-
+submission.to_csv('submission_rank2.csv',index=False)
