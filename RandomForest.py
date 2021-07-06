@@ -87,7 +87,7 @@ train = add_scores(train)
 
 y = train['scores']
 
-train = train.drop(["booking_bool","click_bool","scores"], axis=1)
+train = train.drop(["booking_bool","click_bool","scores","gross_bookings_usd"], axis=1)
 
 #print(train.head())
 
@@ -164,7 +164,8 @@ test = add_mean_features(test)
 train = add_date_features(train)
 test = add_date_features(test)
 
-train = train.drop(["date_time","comp6_inv_mean","comp7_inv_mean","comp8_inv_mean"], axis=1)
+train = train.drop(["date_time","comp8_inv_mean"], axis=1)
+
 test = test.drop(["date_time"], axis=1)
 
 
@@ -228,7 +229,7 @@ X_test = test[['srch_id', 'site_id', 'visitor_location_country_id',
 #X = scaler.fit_transform(X)
 
 # Split dataset into training set and test set
-X_train_s, X_test_s, y_train_s, y_test_s = train_test_split(train, y, test_size=0.30, random_state=1997)
+X_train_s, X_test_s, y_train_s, y_test_s = train_test_split(train, y, test_size=0.50, random_state=1997)
 
 #X_train = X
 #y_train = y
@@ -272,7 +273,7 @@ param_grid = {
 #xgb_clf = XGBClassifier(objective='multi:softmax', num_class = 3)
 #clf=RandomForestClassifier()
 
-lg_ranker = lightgbm.LGBMRanker(objective='lambdarank') #, n_estimators=1000, learning_rate=0.001, num_leaves=50)
+lg_ranker = lightgbm.LGBMRanker(objective='lambdarank')
 
 
 # Instantiate the grid search model
@@ -345,7 +346,7 @@ plt.show()
 #y_pred_s = clf.predict(X_test_s)
 #y_pred_s = xgb_clf.predict(X_test_s)
 #y_pred_s = lg_clf.predict(X_test_s)
-y_pred_s = lg_ranker.predict(X_test_s)
+y_pred_s = lg_ranker.predict(X_test_s,raw_score=True)
 
 # Model Accuracy, how often is the classifier correct?
 #cv_scores = cross_val_score(clf, X, y, cv=5)
@@ -412,7 +413,7 @@ lg_ranker.fit(X,y,group=group)
 
 ## Get prediction
 #y_pred = clf.predict(X_test)
-y_pred = lg_ranker.predict(test)
+y_pred = lg_ranker.predict(test,raw_score=True)
 
 ## Save to df
 test['y_pred'] = y_pred
@@ -428,5 +429,4 @@ result = result.sort_values(['srch_id','y_pred'], ascending=(True,False))
 ## Create submission
 submission = result[['srch_id', 'prop_id']]
 
-#submission.to_csv('submission.csv',index=False)
 submission.to_csv('submission_rank2.csv',index=False)
